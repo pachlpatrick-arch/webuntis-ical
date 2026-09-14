@@ -1,0 +1,124 @@
+name: WebUntis Kalender aktualisieren
+
+on:
+  schedule:
+    # GitHub Actions verwendet UTC.
+    # Deshalb läuft die Prüfung stündlich.
+    # Das Skript entscheidet anhand der Wiener Lokalzeit,
+    # ob tatsächlich eine Aktualisierung erfolgen soll.
+    - cron: "0 * * * *"
+
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: "Kalender unabhängig vom Zeitplan aktualisieren"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: webuntis-calendar-update
+  cancel-in-progress: false
+
+jobs:
+  update-calendar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Wiener Lokalzeit prüfen
+        id: schedule
+        shell: bash
+        run: |
+          LOCAL_DAY="$(TZ=Europe/Vienna date +%u)"
+          LOCAL_HOUR="$(TZ=Europe/Vienna date +%H)"
+          LOCAL_TIME="$(TZ=Europe/Vienna date '+%Y-%m-%d %H:%M:%S %Z')"
+
+          SHOULD_RUN="false"
+
+          echo "Wiener Lokalzeit: ${LOCAL_TIME}"
+          echo "Wochentag: ${LOCAL_DAY}"
+          echo "Stunde: ${LOCAL_HOUR}"
+
+          # Sonntag um 20:00 Uhr
+          if [ "${LOCAL_DAY}" = "7" ] && [ "${LOCAL_HOUR}" = "20" ]; then
+            SHOULD_RUN="true"
+          fi
+
+          # Montag um 07:00 Uhr
+          if [ "${LOCAL_DAY}" = "1" ] && [ "${LOCAL_HOUR}" = "07" ]; then
+            SHOULD_RUN="true"
+          fi
+
+          # Dienstag bis Samstag alle fünf Stunden:
+          # 00:00, 05:00, 10:00, 15:00 und 20:00 Uhr
+          if [ "${LOCAL_DAY}" -ge "2" ] && [ "${LOCAL_DAY}" -le "6" ]; then
+            case "${LOCAL_HOUR}" in
+              00|05|10|15|20)
+                SHOULD_RUN="true"
+                ;;
+            esac
+          fi
+
+          # Manuell gestartete Workflows laufen immer.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHOULD_RUN="true"
+          fi
+
+          echo "should_run=${SHOULD_RUN}" >> "${GITHUB_OUTPUT}"
+
+      - name: Node.js installieren
+        if: steps.schedule.outputs.should_run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Abhängigkeiten installieren
+        if: steps.schedule.outputs.should_run == 'true'
+        run: npm install
+
+      - name: Stundenplan abrufen und iCal erzeugen
+        if: steps.schedule.outputs.should_run == 'true'
+        env:
+          WEBUNTIS_SERVER: "elgym.webuntis.com"
+          WEBUNTIS_SCHOOL: ${{ secrets.WEBUNTIS_SCHOOL }}
+          WEBUNTIS_USERNAME: ${{ secrets.WEBUNTIS_USERNAME }}
+          WEBUNTIS_PASSWORD: ${{ secrets.WEBUNTIS_PASSWORD }}
+          OUTPUT_FILE: "stundenplan.ics"
+          CALENDAR_NAME: "WebUntis Stundenplan"
+          DAYS_PAST: "14"
+          DAYS_FUTURE: "120"
+        run: npm run generate
+
+      - name: Änderung feststellen
+        if: steps.schedule.outputs.should_run == 'true'
+        id: changes
+        shell: bash
+        run: |
+          if git diff --quiet -- stundenplan.ics; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+            echo "Keine Kalenderänderung vorhanden."
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+            echo "Kalender wurde geändert."
+          fi
+
+      - name: Kalender in GitHub speichern
+        if: >
+          steps.schedule.outputs.should_run == 'true' &&
+          steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add stundenplan.ics
+          git commit -m "WebUntis Kalender automatisch aktualisiert"
+          git push
+``
