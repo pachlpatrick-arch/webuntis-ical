@@ -121,4 +121,3 @@ jobs:
           git add stundenplan.ics
           git commit -m "WebUntis Kalender automatisch aktualisiert"
           git push
-``
