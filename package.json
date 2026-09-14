@@ -1,0 +1,13 @@
+{
+  "name": "webuntis-ical",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Erzeugt automatisch einen iCal-Kalender aus dem persönlichen WebUntis-Stundenplan.",
+  "type": "commonjs",
+  "scripts": {
+    "generate": "node generate-calendar.js"
+  },
+  "dependencies": {
+    "webuntis": "2.2.1"
+  }
+}
