@@ -533,5 +533,16 @@ async function main() {
     `Ausgabedatei: ${CONFIG.outputFile}`
   );
 
-  const untis = 
-}
+const untis = new WebUntis(
+2
+CONFIG.school,
+3
+CONFIG.username,
+4
+CONFIG.password,
+5
+CONFIG.server,
+6
+"GitHub-WebUntis-iCal"
+7
+);
