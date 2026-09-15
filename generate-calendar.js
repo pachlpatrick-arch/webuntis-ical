@@ -120,11 +120,7 @@ function foldIcalLine(line) {
 
 function addDays(date, days) {
   const result = new Date(date);
-
-  result.setDate(
-    result.getDate() + days
-  );
-
+  result.setDate(result.getDate() + days);
   return result;
 }
 
@@ -190,4 +186,351 @@ function getLessonStatusText(lesson) {
   ]
     .filter(
       (value) =>
-    
+        value !== undefined &&
+        value !== null
+    )
+    .map((value) => String(value))
+    .join(" ")
+    .toLowerCase();
+}
+
+function isCancelledLesson(lesson) {
+  const statusText =
+    getLessonStatusText(lesson);
+
+  const code = String(
+    lesson.code || ""
+  ).toLowerCase();
+
+  const lessonCode = String(
+    lesson.lessonCode || ""
+  ).toLowerCase();
+
+  return (
+    code === "cancelled" ||
+    code === "canceled" ||
+    lessonCode === "cancelled" ||
+    lessonCode === "canceled" ||
+    statusText.includes("cancelled") ||
+    statusText.includes("canceled") ||
+    statusText.includes("entfällt") ||
+    statusText.includes("entfaellt") ||
+    statusText.includes("entfall") ||
+    statusText.includes("ausfall")
+  );
+}
+
+function isSubstitutionLesson(lesson) {
+  if (isCancelledLesson(lesson)) {
+    return false;
+  }
+
+  const statusText =
+    getLessonStatusText(lesson);
+
+  const code = String(
+    lesson.code || ""
+  ).toLowerCase();
+
+  const lessonCode = String(
+    lesson.lessonCode || ""
+  ).toLowerCase();
+
+  const cellState = String(
+    lesson.cellState || ""
+  ).toUpperCase();
+
+  return (
+    code === "irregular" ||
+    lessonCode === "irregular" ||
+    cellState === "SUBSTITUTION" ||
+    cellState === "ROOMSUBSTITUTION" ||
+    lesson.is?.substitution === true ||
+    lesson.is?.roomSubstitution === true ||
+    statusText.includes("substitution") ||
+    statusText.includes(
+      "roomsubstitution"
+    ) ||
+    statusText.includes("supplier") ||
+    statusText.includes("suppliert") ||
+    statusText.includes("supplierung") ||
+    statusText.includes("vertretung")
+  );
+}
+
+function getLessonStatus(lesson) {
+  if (isCancelledLesson(lesson)) {
+    return {
+      titlePrefix: "E: ",
+      description: "Entfällt",
+      color: "#DC2626",
+      transparency: "TRANSPARENT"
+    };
+  }
+
+  if (isSubstitutionLesson(lesson)) {
+    return {
+      titlePrefix: "S: ",
+      description: "Suppliert",
+      color: "#16A34A",
+      transparency: "OPAQUE"
+    };
+  }
+
+  return {
+    titlePrefix: "",
+    description: "Regulärer Unterricht",
+    color: "#2563EB",
+    transparency: "OPAQUE"
+  };
+}
+
+function createUid(lesson) {
+  const stableInput = [
+    CONFIG.school,
+    lesson.id,
+    lesson.lessonId ||
+      lesson.lsnumber ||
+      "",
+    lesson.date,
+    lesson.startTime,
+    lesson.endTime
+  ].join("-");
+
+  const hash = crypto
+    .createHash("sha256")
+    .update(stableInput)
+    .digest("hex")
+    .slice(0, 32);
+
+  return `${hash}@webuntis-ical`;
+}
+
+function logChangedLesson(
+  lesson,
+  subjects,
+  status
+) {
+  if (
+    status.description ===
+    "Regulärer Unterricht"
+  ) {
+    return;
+  }
+
+  console.log(
+    "Geänderte Unterrichtsstunde:",
+    JSON.stringify(
+      {
+        id: lesson.id,
+        date: lesson.date,
+        startTime: lesson.startTime,
+        endTime: lesson.endTime,
+        subjects,
+        erkannterStatus:
+          status.description,
+        code: lesson.code,
+        lessonCode: lesson.lessonCode,
+        cellState: lesson.cellState,
+        substText: lesson.substText,
+        info: lesson.info,
+        lstext: lesson.lstext,
+        lessonText: lesson.lessonText,
+        periodText: lesson.periodText,
+        periodInfo: lesson.periodInfo,
+        activityType:
+          lesson.activityType,
+        statflags: lesson.statflags,
+        is: lesson.is
+      },
+      null,
+      2
+    )
+  );
+}
+
+function createEvent(
+  lesson,
+  generatedAt
+) {
+  const subjects =
+    getSubjectNames(lesson);
+
+  const teachers =
+    getTeacherNames(lesson);
+
+  const rooms =
+    getRoomNames(lesson);
+
+  const status =
+    getLessonStatus(lesson);
+
+  const basicTitle =
+    subjects.length > 0
+      ? subjects.join(", ")
+      : "Unterricht";
+
+  const title =
+    `${status.titlePrefix}${basicTitle}`;
+
+  logChangedLesson(
+    lesson,
+    subjects,
+    status
+  );
+
+  const descriptionParts = [
+    `Status: ${status.description}`,
+    teachers.length > 0
+      ? `Lehrkraft: ${teachers.join(", ")}`
+      : null,
+    rooms.length > 0
+      ? `Raum: ${rooms.join(", ")}`
+      : null,
+    lesson.substText
+      ? `Vertretungstext: ${lesson.substText}`
+      : null,
+    lesson.info
+      ? `Information: ${lesson.info}`
+      : null,
+    lesson.lstext
+      ? `Unterrichtstext: ${lesson.lstext}`
+      : null,
+    lesson.lessonText
+      ? `Unterrichtstext: ${lesson.lessonText}`
+      : null,
+    lesson.periodText
+      ? `Stundentext: ${lesson.periodText}`
+      : null,
+    lesson.periodInfo
+      ? `Stundeninformation: ${lesson.periodInfo}`
+      : null
+  ].filter(Boolean);
+
+  const lines = [
+    "BEGIN:VEVENT",
+    `UID:${createUid(lesson)}`,
+    `DTSTAMP:${generatedAt}`,
+    `LAST-MODIFIED:${generatedAt}`,
+    `DTSTART;TZID=${CONFIG.timezone}:` +
+      toIcalLocalDateTime(
+        lesson.date,
+        lesson.startTime
+      ),
+    `DTEND;TZID=${CONFIG.timezone}:` +
+      toIcalLocalDateTime(
+        lesson.date,
+        lesson.endTime
+      ),
+    `SUMMARY:${escapeIcalText(title)}`,
+    `DESCRIPTION:${escapeIcalText(
+      descriptionParts.join("\n")
+    )}`,
+    `LOCATION:${escapeIcalText(
+      rooms.join(", ")
+    )}`,
+    `TRANSP:${status.transparency}`,
+    `COLOR:${status.color}`,
+    `X-APPLE-CALENDAR-COLOR:${status.color}`,
+    "STATUS:CONFIRMED",
+    "END:VEVENT"
+  ];
+
+  return lines
+    .map(foldIcalLine)
+    .join("\r\n");
+}
+
+function createCalendar(lessons) {
+  const generatedAt =
+    toUtcTimestamp();
+
+  const header = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "PRODID:-//WebUntis iCal GitHub//DE",
+    `X-WR-CALNAME:${escapeIcalText(
+      CONFIG.calendarName
+    )}`,
+    `X-WR-TIMEZONE:${CONFIG.timezone}`,
+    "REFRESH-INTERVAL;VALUE=DURATION:PT5H",
+    "X-PUBLISHED-TTL:PT5H",
+    "BEGIN:VTIMEZONE",
+    `TZID:${CONFIG.timezone}`,
+    "X-LIC-LOCATION:Europe/Vienna",
+    "BEGIN:DAYLIGHT",
+    "TZOFFSETFROM:+0100",
+    "TZOFFSETTO:+0200",
+    "TZNAME:CEST",
+    "DTSTART:19700329T020000",
+    "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
+    "END:DAYLIGHT",
+    "BEGIN:STANDARD",
+    "TZOFFSETFROM:+0200",
+    "TZOFFSETTO:+0100",
+    "TZNAME:CET",
+    "DTSTART:19701025T030000",
+    "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU",
+    "END:STANDARD",
+    "END:VTIMEZONE"
+  ];
+
+  const events = lessons.map(
+    (lesson) =>
+      createEvent(
+        lesson,
+        generatedAt
+      )
+  );
+
+  return [
+    ...header,
+    ...events,
+    "END:VCALENDAR",
+    ""
+  ].join("\r\n");
+}
+
+function getLessonSortKey(lesson) {
+  return (
+    String(lesson.date).padStart(
+      8,
+      "0"
+    ) +
+    String(lesson.startTime).padStart(
+      4,
+      "0"
+    ) +
+    String(lesson.endTime).padStart(
+      4,
+      "0"
+    )
+  );
+}
+
+async function main() {
+  requireEnvironmentVariable(
+    "WEBUNTIS_USERNAME",
+    CONFIG.username
+  );
+
+  requireEnvironmentVariable(
+    "WEBUNTIS_PASSWORD",
+    CONFIG.password
+  );
+
+  console.log(
+    `WebUntis-Server: ${CONFIG.server}`
+  );
+
+  console.log(
+    `Schulkennung: ${CONFIG.school}`
+  );
+
+  console.log(
+    `Ausgabedatei: ${CONFIG.outputFile}`
+  );
+
+  const untis = 
