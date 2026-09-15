@@ -95,28 +95,21 @@ jobs:
           DAYS_FUTURE: "120"
         run: npm run generate
 
-      - name: Änderung feststellen
-        if: steps.schedule.outputs.should_run == 'true'
-        id: changes
-        shell: bash
-        run: |
-          if git diff --quiet -- stundenplan.ics; then
-            echo "changed=false" >> "${GITHUB_OUTPUT}"
-            echo "Keine Kalenderänderung vorhanden."
-          else
-            echo "changed=true" >> "${GITHUB_OUTPUT}"
-            echo "Kalender wurde geändert."
-          fi
-
-      - name: Kalender in GitHub speichern
-        if: >
-          steps.schedule.outputs.should_run == 'true' &&
-          steps.changes.outputs.changed == 'true'
+           - name: Kalender in GitHub speichern
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add stundenplan.ics
+          echo "Dateien im Verzeichnis:"
+          ls -lah
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen vorhanden"
+            exit 0
+          fi
+
           git commit -m "WebUntis Kalender automatisch aktualisiert"
           git push
