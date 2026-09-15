@@ -353,7 +353,7 @@ function createEvent(lesson, generatedAt) {
 
   logCha*gedLesson(
     lesson,
-    subject*,
+    subjects,
     status
   );
 
