@@ -7,19 +7,19 @@ const CONFIG = {
   school: process.env.WEBUNTIS_SCHOOL || "elgym",
   username: process.env.WEBUNTIS_USERNAME,
   password: process.env.WEBUNTIS_PASSWORD,
+
   daysPast: Number(process.env.DAYS_PAST || 14),
   daysFuture: Number(process.env.DAYS_FUTURE || 120),
+
   outputFile: process.env.OUTPUT_FILE || "stundenplan.ics",
-  calendarName:
-    process.env.CALENDAR_NAME || "WebUntis Stundenplan",
+  calendarName: process.env.CALENDAR_NAME || "WebUntis Stundenplan",
   timezone: "Europe/Vienna"
 };
 
 function requireEnvironmentVariable(name, value) {
   if (!value) {
     throw new Error(
-      `Die Umgebungsvariable ${name} fehlt. ` +
-        "Bitte als GitHub Secret hinterlegen."
+      `Die Umgebungsvariable ${name} fehlt. Bitte als GitHub Secret hinterlegen.`
     );
   }
 }
@@ -32,9 +32,7 @@ function parseUntisDate(value) {
   const text = String(value);
 
   if (!/^\d{8}$/.test(text)) {
-    throw new Error(
-      `Ungültiges WebUntis-Datum: ${value}`
-    );
+    throw new Error(`Ungültiges WebUntis-Datum: ${value}`);
   }
 
   return {
@@ -53,19 +51,13 @@ function parseUntisTime(value) {
   };
 }
 
-function toIcalLocalDateTime(
-  untisDate,
-  untisTime
-) {
+function toIcalLocalDateTime(untisDate, untisTime) {
   const date = parseUntisDate(untisDate);
   const time = parseUntisTime(untisTime);
 
   return (
-    `${date.year}` +
-    `${pad(date.month)}` +
-    `${pad(date.day)}` +
-    `T${pad(time.hour)}` +
-    `${pad(time.minute)}00`
+    `${date.year}${pad(date.month)}${pad(date.day)}` +
+    `T${pad(time.hour)}${pad(time.minute)}00`
   );
 }
 
@@ -100,12 +92,9 @@ function foldIcalLine(line) {
   let currentLength = 0;
 
   for (const character of line) {
-    const characterLength =
-      Buffer.byteLength(character, "utf8");
+    const characterLength = Buffer.byteLength(character, "utf8");
 
-    if (
-      currentLength + characterLength > 73
-    ) {
+    if (currentLength + characterLength > 73) {
       parts.push(current);
       current = ` ${character}`;
       currentLength = 1 + characterLength;
@@ -149,21 +138,15 @@ function uniqueNames(items) {
 }
 
 function getSubjectNames(lesson) {
-  return uniqueNames(
-    lesson.su || lesson.subjects
-  );
+  return uniqueNames(lesson.su || lesson.subjects);
 }
 
 function getTeacherNames(lesson) {
-  return uniqueNames(
-    lesson.te || lesson.teachers
-  );
+  return uniqueNames(lesson.te || lesson.teachers);
 }
 
 function getRoomNames(lesson) {
-  return uniqueNames(
-    lesson.ro || lesson.rooms
-  );
+  return uniqueNames(lesson.ro || lesson.rooms);
 }
 
 function getLessonStatusText(lesson) {
@@ -181,40 +164,23 @@ function getLessonStatusText(lesson) {
     lesson.statflags,
     lesson.is?.event ? "event" : "",
     lesson.is?.standard ? "standard" : "",
-    lesson.is?.substitution
-      ? "substitution"
-      : "",
-    lesson.is?.roomSubstitution
-      ? "roomsubstitution"
-      : ""
+    lesson.is?.substitution ? "substitution" : "",
+    lesson.is?.roomSubstitution ? "roomsubstitution" : ""
   ]
-    .filter(
-      (value) =>
-        value !== undefined &&
-        value !== null
-    )
+    .filter((value) => value !== undefined && value !== null)
     .map((value) => String(value))
     .join(" ")
     .toLowerCase();
 }
 
 function isCancelledLesson(lesson) {
-  const statusText =
-    getLessonStatusText(lesson);
-
-  const code = String(
-    lesson.code || ""
-  ).toLowerCase();
-
-  const lessonCode = String(
-    lesson.lessonCode || ""
-  ).toLowerCase();
+  const statusText = getLessonStatusText(lesson);
 
   return (
-    code === "cancelled" ||
-    code === "canceled" ||
-    lessonCode === "cancelled" ||
-    lessonCode === "canceled" ||
+    String(lesson.code).toLowerCase() === "cancelled" ||
+    String(lesson.code).toLowerCase() === "canceled" ||
+    String(lesson.lessonCode).toLowerCase() === "cancelled" ||
+    String(lesson.lessonCode).toLowerCase() === "canceled" ||
     statusText.includes("cancelled") ||
     statusText.includes("canceled") ||
     statusText.includes("entfällt") ||
@@ -229,20 +195,10 @@ function isSubstitutionLesson(lesson) {
     return false;
   }
 
-  const statusText =
-    getLessonStatusText(lesson);
-
-  const code = String(
-    lesson.code || ""
-  ).toLowerCase();
-
-  const lessonCode = String(
-    lesson.lessonCode || ""
-  ).toLowerCase();
-
-  const cellState = String(
-    lesson.cellState || ""
-  ).toUpperCase();
+  const statusText = getLessonStatusText(lesson);
+  const code = String(lesson.code || "").toLowerCase();
+  const lessonCode = String(lesson.lessonCode || "").toLowerCase();
+  const cellState = String(lesson.cellState || "").toUpperCase();
 
   return (
     code === "irregular" ||
@@ -252,9 +208,7 @@ function isSubstitutionLesson(lesson) {
     lesson.is?.substitution === true ||
     lesson.is?.roomSubstitution === true ||
     statusText.includes("substitution") ||
-    statusText.includes(
-      "roomsubstitution"
-    ) ||
+    statusText.includes("roomsubstitution") ||
     statusText.includes("supplier") ||
     statusText.includes("suppliert") ||
     statusText.includes("supplierung") ||
@@ -265,7 +219,7 @@ function isSubstitutionLesson(lesson) {
 function getLessonStatus(lesson) {
   if (isCancelledLesson(lesson)) {
     return {
-      titlePrefix: "Entfällt: ",
+      titleSuffix: " - Entfällt",
       description: "Entfällt",
       color: "#DC2626",
       transparency: "TRANSPARENT"
@@ -274,7 +228,7 @@ function getLessonStatus(lesson) {
 
   if (isSubstitutionLesson(lesson)) {
     return {
-      titlePrefix: "Suppliert: ",
+      titleSuffix: " - Suppliert",
       description: "Suppliert",
       color: "#16A34A",
       transparency: "OPAQUE"
@@ -282,7 +236,7 @@ function getLessonStatus(lesson) {
   }
 
   return {
-    titlePrefix: "",
+    titleSuffix: "",
     description: "Regulärer Unterricht",
     color: "#2563EB",
     transparency: "OPAQUE"
@@ -293,9 +247,7 @@ function createUid(lesson) {
   const stableInput = [
     CONFIG.school,
     lesson.id,
-    lesson.lessonId ||
-      lesson.lsnumber ||
-      "",
+    lesson.lessonId || lesson.lsnumber || "",
     lesson.date,
     lesson.startTime,
     lesson.endTime
@@ -310,51 +262,61 @@ function createUid(lesson) {
   return `${hash}@webuntis-ical`;
 }
 
-function createEvent(
-  lesson,
-  generatedAt
-) {
-  const subjects =
-    getSubjectNames(lesson);
+function logChangedLesson(lesson, subjects, status) {
+  if (status.description === "Regulärer Unterricht") {
+    return;
+  }
 
-  const teachers =
-    getTeacherNames(lesson);
+  console.log(
+    "Geänderte Unterrichtsstunde:",
+    JSON.stringify(
+      {
+        id: lesson.id,
+        date: lesson.date,
+        startTime: lesson.startTime,
+        endTime: lesson.endTime,
+        subjects,
+        erkannterStatus: status.description,
+        code: lesson.code,
+        lessonCode: lesson.lessonCode,
+        cellState: lesson.cellState,
+        substText: lesson.substText,
+        info: lesson.info,
+        lstext: lesson.lstext,
+        lessonText: lesson.lessonText,
+        periodText: lesson.periodText,
+        periodInfo: lesson.periodInfo,
+        activityType: lesson.activityType,
+        statflags: lesson.statflags,
+        is: lesson.is
+      },
+      null,
+      2
+    )
+  );
+}
 
-  const rooms =
-    getRoomNames(lesson);
-
-  const status =
-    getLessonStatus(lesson);
+function createEvent(lesson, generatedAt) {
+  const subjects = getSubjectNames(lesson);
+  const teachers = getTeacherNames(lesson);
+  const rooms = getRoomNames(lesson);
+  const status = getLessonStatus(lesson);
 
   const basicTitle =
-    subjects.length > 0
-      ? subjects.join(", ")
-      : "Unterricht";
+    subjects.length > 0 ? subjects.join(", ") : "Unterricht";
 
-  /*
-   * Gewünschte Schreibweise:
-   *
-   * Entfällt: GEOGRAPHIE
-   * Suppliert: PONB
-   * MATHEMATIK
-   */
-  const title =
-    `${status.ti*lePrefix}${basicTitle}`;
+  const title = `${basicTitle}${status.titleSuffix}`;
+
+  logChangedLesson(lesson, subjects, status);
 
   const descriptionParts = [
     `Status: ${status.description}`,
-    teachers.length > 0
-      ? `Lehrkraft: ${teachers.join(", ")}`
-      : null,
-    rooms.length > 0
-      ? `Raum: ${rooms.join(", ")}`
-      : null,
+    teachers.length > 0 ? `Lehrkraft: ${teachers.join(", ")}` : null,
+    rooms.length > 0 ? `Raum: ${rooms.join(", ")}` : null,
     lesson.substText
       ? `Vertretungstext: ${lesson.substText}`
       : null,
-    lesson.info
-      ? `Information: ${lesson.info}`
-      : null,
+    lesson.info ? `Information: ${lesson.info}` : null,
     lesson.lstext
       ? `Unterrichtstext: ${lesson.lstext}`
       : null,
@@ -367,30 +329,24 @@ function createEvent(
     lesson.periodInfo
       ? `Stundeninformation: ${lesson.periodInfo}`
       : null
-  ].filter(Bo*lean);
+  ].filter(Boolean);
 
   const lines = [
     "BEGIN:VEVENT",
     `UID:${createUid(lesson)}`,
     `DTSTAMP:${generatedAt}`,
     `LAST-MODIFIED:${generatedAt}`,
-    `DTSTART;TZID=${CONFIG.timezone}:` +
-      toIcalLocalDateTime(
-        lesson.date,
-        lesson.startTime
-      ),
-    `DTEND;T*ID=${CONFIG.timezone}:` +
-      to*calLocalDateTime(
-        lesson.d*te,
-        lesson.endTime
-      )*
-    `SUMMARY:${escapeIcalText(tit*e)}`,
-    `DESCRIPTION:${escapeIca*Text(
-      descriptionParts.join("\n")
+    `DTSTART;TZID=${CONFIG.timezone}:${toIcalLocalDateTime(
+      lesson.date,
+      lesson.startTime
     )}`,
-    `LOCATION:${escapeIcalText(
-      rooms.join(", ")
+    `DTEND;TZID=${CONFIG.timezone}:${toIcalLocalDateTime(
+      lesson.date,
+      lesson.endTime
     )}`,
+    `SUMMARY:${escapeIcalText(title)}`,
+    `DESCRIPTION:${escapeIcalText(descriptionParts.join("\n"))}`,
+    `LOCATION:${escapeIcalText(rooms.join(", "))}`,
     `TRANSP:${status.transparency}`,
     `COLOR:${status.color}`,
     `X-APPLE-CALENDAR-COLOR:${status.color}`,
@@ -398,23 +354,19 @@ function createEvent(
     "END:VEVENT"
   ];
 
-  return lines
-    .map(foldIcalLine)
-    .join("\r\n");
+  return lines.map(foldIcalLine).join("\r\n");
 }
 
-functi*n createCalendar(lessons) {
-  cons* generatedAt = toUtcTimestamp();
+function createCalendar(lessons) {
+  const generatedAt = toUtcTimestamp();
 
-* const header = [
+  const header = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "PRODID:-//WebUntis iCal GitHub//DE",
-    `X-WR-CALNAME:${escapeIcalText(
-      CONFIG.calendarName
-    )}`,
+    `X-WR-CALNAME:${escapeIcalText(CONFIG.calendarName)}`,
     `X-WR-TIMEZONE:${CONFIG.timezone}`,
     "REFRESH-INTERVAL;VALUE=DURATION:PT5H",
     "X-PUBLISHED-TTL:PT5H",
@@ -426,47 +378,30 @@ functi*n createCalendar(lessons) {
     "TZOFFSETTO:+0200",
     "TZNAME:CEST",
     "DTSTART:19700329T020000",
-    "RRULE:FREQ=YEARLY;BYMONTH=3;" +
-      "BYDAY=-1SU",
+    "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
     "END:DAYLIGHT",
     "BEGIN:STANDARD",
     "TZOFFSETFROM:+0200",
     "TZOFFSETTO:+0100",
     "TZNAME:CET",
     "DTSTART:19701025T030000",
-    "RRULE:FREQ=YEARLY;BYMONTH=10;" +
-      "BYDAY=-1SU",
+    "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU",
     "END:STANDARD",
     "END:VTIMEZONE"
   ];
 
-  const events = lessons.ma*(
-    (lesson) =>
-      createEven*(lesson, generatedAt)
+  const events = lessons.map((lesson) =>
+    createEvent(lesson, generatedAt)
   );
 
-  retu*n [
-    ...header,
-    ...events,
-    "END:VCALENDAR",
-    ""
-  ].joi*("\r\n");
+  return [...header, ...events, "END:VCALENDAR", ""].join("\r\n");
 }
 
-function getLessonSor*Key(lesson) {
+function getLessonSortKey(lesson) {
   return (
-    String(lesson.date).padStart(
-      8,
-      "0"
-    ) +
-    String(lesson.startTime).padStart(
-      4,
-      "0"
-    ) +
-    String(lesson.endTime).padStart(
-      4,
-      "0"
-    )
+    `${String(lesson.date).padStart(8, "0")}` +
+    `${String(lesson.startTime).padStart(4, "0")}` +
+    `${String(lesson.endTime).padStart(4, "0")}`
   );
 }
 
@@ -481,17 +416,9 @@ async function main() {
     CONFIG.password
   );
 
-  console.log(
-    `WebUntis-Server: ${CONFIG.server}`
-  );
-
-  console.log(
-    `Schulkennung: ${CONFIG.school}`
-  );
-
-  console.log(
-    `Ausgabedatei: ${CONFIG.outputFile}`
-  );
+  console.log(`WebUntis-Server: ${CONFIG.server}`);
+  console.log(`Schulkennung: ${CONFIG.school}`);
+  console.log(`Ausgabedatei: ${CONFIG.outputFile}`);
 
   const untis = new WebUntis(
     CONFIG.school,
@@ -501,107 +428,66 @@ async function main() {
     "GitHub-WebUntis-iCal"
   );
 
-  const startDate = addDays(
-    new Date(),
-    -CONFIG.daysPast
-  );
-
-  const endDate = addDays(
-    new Date(),
-    CONFIG.daysFuture
-  );
+  const startDate = addDays(new Date(), -CONFIG.daysPast);
+  const endDate = addDays(new Date(), CONFIG.daysFuture);
 
   try {
     await untis.login();
+    console.log("WebUntis-Anmeldung erfolgreich.");
 
-    console.log(
-      "WebUntis-Anmeldung erfolgreich."
+    const lessons = await untis.getOwnTimetableForRange(
+      startDate,
+      endDate
     );
-
-    const lessons =
-      await untis.getOwnTimetableForRange(
-        startDate,
-        endDate
-      );
 
     if (!Array.isArray(lessons)) {
       throw new Error(
-        "WebUntis hat keine gültige " +
-          "Stundenplanliste geliefert."
+        "WebUntis hat keine gültige Stundenplanliste geliefert."
       );
     }
 
-    lessons.sort(
-      (firstLesson, secondLesson) =>
-        getLessonSortKey(
-          firstLesson
-        ).localeCompare(
-          getLessonSortKey(secondLesson)
-        )
+    lessons.sort((firstLesson, secondLesson) =>
+      getLessonSortKey(firstLesson).localeCompare(
+        getLessonSortKey(secondLesson)
+      )
     );
 
-    const calendar =
-      createCalendar(lessons);
+    const calendar = createCalendar(lessons);
 
-    fs.writeFileSync(
-      CONFIG.outputFile,
-      calendar,
-      {
-        encoding: "utf8"
-      }
-    );
+    fs.writeFileSync(CONFIG.outputFile, calendar, {
+      encoding: "utf8"
+    });
 
     const cancelledCount =
-      lessons.filter(
-        isCancelledLesson
-      ).length;
+      lessons.filter(isCancelledLesson).length;
 
     const substitutionCount =
-      lessons.filter(
-        isSubstitutionLesson
-      ).length;
+      lessons.filter(isSubstitutionLesson).length;
 
+    console.log(`Kalendereinträge erzeugt: ${lessons.length}`);
+    console.log(`Davon Entfall: ${cancelledCount}`);
+    console.log(`Davon Suppliert: ${substitutionCount}`);
     console.log(
-      `Kalendereinträge erzeugt: ` +
-        `${lessons.length}`
-    );
-
-    console.log(
-      `Davon Entfall: ${cancelledCount}`
-    );
-
-    console.log(
-      `Davon Suppliert: ` +
-        `${substitutionCount}`
-    );
-
-    console.log(
-      `${CONFIG.outputFile} wurde ` +
-        "erfolgreich gespeichert."
+      `${CONFIG.outputFile} wurde erfolgreich gespeichert.`
     );
   } finally {
     try {
       await untis.logout();
     } catch {
       console.log(
-        "WebUntis-Abmeldung konnte " +
-          "nicht durchgeführt werden."
+        "WebUntis-Abmeldung konnte nicht durchgeführt werden."
       );
     }
   }
 }
 
 main().catch((error) => {
-  console.error(
-    "Fehler beim Erzeugen des Kalenders:"
-  );
-
+  console.error("Fehler beim Erzeugen des Kalenders:");
   console.error(
     error?.response?.data ||
       error?.stack ||
       error?.message ||
       error
   );
-
   process.exit(1);
 });
