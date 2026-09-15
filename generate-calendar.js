@@ -550,3 +550,94 @@ async function main() {
     new Date(),
     CONFIG.daysFuture
   );
+try {
+  await untis.login();
+
+  console.log(
+    "WebUntis-Anmeldung erfolgreich."
+  );
+
+  const lessons =
+    await untis.getOwnTimetableForRange(
+      startDate,
+      endDate
+    );
+
+  if (!Array.isArray(lessons)) {
+    throw new Error(
+      "WebUntis hat keine gültige Stundenplanliste geliefert."
+    );
+  }
+
+  lessons.sort(
+    (firstLesson, secondLesson) =>
+      getLessonSortKey(
+        firstLesson
+      ).localeCompare(
+        getLessonSortKey(
+          secondLesson
+        )
+      )
+  );
+
+  const calendar =
+    createCalendar(lessons);
+
+  fs.writeFileSync(
+    CONFIG.outputFile,
+    calendar,
+    {
+      encoding: "utf8"
+    }
+  );
+
+  const cancelledCount =
+    lessons.filter(
+      isCancelledLesson
+    ).length;
+
+  const substitutionCount =
+    lessons.filter(
+      isSubstitutionLesson
+    ).length;
+
+  console.log(
+    `Kalendereinträge erzeugt: ${lessons.length}`
+  );
+
+  console.log(
+    `Davon Entfall: ${cancelledCount}`
+  );
+
+  console.log(
+    `Davon Suppliert: ${substitutionCount}`
+  );
+
+  console.log(
+    `${CONFIG.outputFile} wurde erfolgreich gespeichert.`
+  );
+} finally {
+  try {
+    await untis.logout();
+  } catch {
+    console.log(
+      "WebUntis-Abmeldung konnte nicht durchgeführt werden."
+    );
+  }
+}
+}
+
+main().catch((error) => {
+  console.error(
+    "Fehler beim Erzeugen des Kalenders:"
+  );
+
+  console.error(
+    error?.response?.data ||
+    error?.stack ||
+    error?.message ||
+    error
+  );
+
+  process.exit(1);
+});
