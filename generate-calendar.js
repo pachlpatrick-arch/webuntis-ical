@@ -154,7 +154,72 @@ function getRoomNames(lesson) {
   return uniqueNames(lesson.ro || lesson.rooms);
 }
 
+function getLessonStatusText(lesson) {
+  return [
+    lesson.code,
+    lesson.lessonCode,
+    lesson.cellState,
+    lesson.substText,
+    lesson.info,
+    lesson.lstext,
+    lesson.lessonText,
+    lesson.periodText,
+    lesson.periodInfo,
+    lesson.activityType,
+    lesson.statflags,
+    lesson.is?.event ? "event" : "",
+    lesson.is?.standard ? "standard" : "",
+    lesson.is?.substitution ? "substitution" : "",
+    lesson.is?.roomSubstitution ? "roomsubstitution" : ""
+  ]
+    .filter((value) => value !== undefined && value !== null)
+    .map((value) => String(value))
+    .join(" ")
+    .toLowerCase();
+}
+
 function isCancelledLesson(lesson) {
+  const statusText = getLessonStatusText(lesson);
+
+  return (
+    lesson.code === "cancelled" ||
+    lesson.code === "canceled" ||
+    lesson.lessonCode === "cancelled" ||
+    lesson.lessonCode === "canceled" ||
+    statusText.includes("cancelled") ||
+    statusText.includes("canceled") ||
+    statusText.includes("entfällt") ||
+    statusText.includes("entfaellt") ||
+    statusText.includes("entfall") ||
+    statusText.includes("ausfall") ||
+    statusText.includes("cancel")
+  );
+}
+
+function isSubstitutionLesson(lesson) {
+  // Ein Entfall hat immer Vorrang vor einer Supplierung.
+  if (isCancelledLesson(lesson)) {
+    return false;
+  }
+
+  const statusText = getLessonStatusText(lesson);
+
+  return (
+    lesson.code === "irregular" ||
+    lesson.lessonCode === "irregular" ||
+    lesson.cellState === "SUBSTITUTION" ||
+    lesson.cellState === "ROOMSUBSTITUTION" ||
+    lesson.is?.substitution === true ||
+    lesson.is?.roomSubstitution === true ||
+    statusText.includes("substitution") ||
+    statusText.includes("roomsubstitution") ||
+    statusText.includes("supplier") ||
+    statusText.includes("suppliert") ||
+    statusText.includes("supplierung") ||
+    statusText.includes("vertretung") ||
+    statusText.includes("raumvertretung")
+  );
+}
   const searchableText = [
     lesson.code,
     lesson.lessonCode,
@@ -248,8 +313,8 @@ function createEvent(lesson, generatedAt) {
     color = "#DC2626";
     transparency = "TRANSPARENT";
   } else if (isSubstitutionLesson(lesson)) {
-    title += " - suppliert";
-    statusText = "suppliert";
+    title += " - Suppliert";
+    statusText = "Suppliert";
     color = "#16A34A";
   }
 
