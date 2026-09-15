@@ -77,7 +77,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
 
       - name: Abhängigkeiten installieren
         if: steps.schedule.outputs.should_run == 'true'
