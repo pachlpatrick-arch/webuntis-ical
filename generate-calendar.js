@@ -219,6 +219,31 @@ function isSubstitutionLesson(lesson) {
 function getLessonStatus(lesson) {
   if (isCancelledLesson(lesson)) {
     return {
+      titlePrefix: "E: ",
+      description: "Entfällt",
+      color: "#DC2626",
+      transparency: "TRANSPARENT"
+    };
+  }
+
+  if (isSubstitutionLesson(lesson)) {
+    return {
+      titlePrefix: "S: ",
+      description: "Suppliert",
+      color: "#16A34A",
+      transparency: "OPAQUE"
+    };
+  }
+
+  return {
+    titlePrefix: "",
+    description: "Regulärer Unterricht",
+    color: "#2563EB",
+    transparency: "OPAQUE"
+  };
+}
+  if (isCancelledLesson(lesson)) {
+    return {
       titleSuffix: " - Entfällt",
       description: "Entfällt",
       color: "#DC2626",
@@ -305,7 +330,7 @@ function createEvent(lesson, generatedAt) {
   const basicTitle =
     subjects.length > 0 ? subjects.join(", ") : "Unterricht";
 
-  const title = `${basicTitle}${status.titleSuffix}`;
+  const title = `${status.titlePrefix}${basicTitle}`;
 
   logChangedLesson(lesson, subjects, status);
 
