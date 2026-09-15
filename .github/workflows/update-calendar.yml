@@ -55,4 +55,3 @@ jobs:
 
           git commit -m "WebUntis Kalender aktualisiert"
           git push
-`
