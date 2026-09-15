@@ -386,7 +386,7 @@ function createEvent(
       )*
     `SUMMARY:${escapeIcalText(tit*e)}`,
     `DESCRIPTION:${escapeIca*Text(
-      descriptionParts.join(*\n")
+      descriptionParts.join("\n")
     )}`,
     `LOCATION:${esca*eIcalText(
       rooms.join(", ")
