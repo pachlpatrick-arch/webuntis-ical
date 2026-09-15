@@ -302,10 +302,18 @@ function createEvent(lesson, generatedAt) {
   const rooms = getRoomNames(lesson);
   const status = getLessonStatus(lesson);
 
-  const basicTitle =
-    subjects.length > 0 ? subjects.join(", ") : "Unterricht";
+const basicTitle =
+  subjects.length > 0 ? subjects.join(", ") : "Unterricht";
 
-  const title = `${basicTitle}${status.titleSuffix}`;
+let title = basicTitle;
+
+if (status.description === "Entfällt") {
+  title = `Entfällt - ${basicTitle}`;
+}
+
+if (status.description === "Suppliert") {
+  title = `Suppliert - ${basicTitle}`;
+}
 
   logChangedLesson(lesson, subjects, status);
 
