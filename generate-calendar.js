@@ -8,7 +8,6 @@ const CONFIG = {
   username: process.env.WEBUNTIS_USERNAME,
   password: process.env.WEBUNTIS_PASSWORD,
 
-  // Wie viele Tage rückwirkend und im Voraus exportiert werden.
   daysPast: Number(process.env.DAYS_PAST || 14),
   daysFuture: Number(process.env.DAYS_FUTURE || 120),
 
@@ -62,14 +61,6 @@ function toIcalLocalDateTime(untisDate, untisTime) {
   );
 }
 
-function toUntisDate(date) {
-  return (
-    `${date.getFullYear()}` +
-    `${pad(date.getMonth() + 1)}` +
-    `${pad(date.getDate())}`
-  );
-}
-
 function toUtcTimestamp(date = new Date()) {
   return (
     date.getUTCFullYear() +
@@ -92,9 +83,7 @@ function escapeIcalText(value) {
 }
 
 function foldIcalLine(line) {
-  const bytes = Buffer.from(line, "utf8");
-
-  if (bytes.length <= 73) {
+  if (Buffer.byteLength(line, "utf8") <= 73) {
     return line;
   }
 
@@ -107,7 +96,7 @@ function foldIcalLine(line) {
 
     if (currentLength + characterLength > 73) {
       parts.push(current);
-      current = " " + character;
+      current = ` ${character}`;
       currentLength = 1 + characterLength;
     } else {
       current += character;
@@ -136,7 +125,13 @@ function uniqueNames(items) {
   return [
     ...new Set(
       items
-        .map((item) => item?.longname || item?.name || item?.displayName)
+        .map(
+          (item) =>
+            item?.longname ||
+            item?.name ||
+            item?.displayName ||
+            item?.element?.name
+        )
         .filter(Boolean)
     )
   ];
@@ -182,33 +177,34 @@ function isCancelledLesson(lesson) {
   const statusText = getLessonStatusText(lesson);
 
   return (
-    lesson.code === "cancelled" ||
-    lesson.code === "canceled" ||
-    lesson.lessonCode === "cancelled" ||
-    lesson.lessonCode === "canceled" ||
+    String(lesson.code).toLowerCase() === "cancelled" ||
+    String(lesson.code).toLowerCase() === "canceled" ||
+    String(lesson.lessonCode).toLowerCase() === "cancelled" ||
+    String(lesson.lessonCode).toLowerCase() === "canceled" ||
     statusText.includes("cancelled") ||
     statusText.includes("canceled") ||
     statusText.includes("entfällt") ||
     statusText.includes("entfaellt") ||
     statusText.includes("entfall") ||
-    statusText.includes("ausfall") ||
-    statusText.includes("cancel")
+    statusText.includes("ausfall")
   );
 }
 
 function isSubstitutionLesson(lesson) {
-  // Ein Entfall hat immer Vorrang vor einer Supplierung.
   if (isCancelledLesson(lesson)) {
     return false;
   }
 
   const statusText = getLessonStatusText(lesson);
+  const code = String(lesson.code || "").toLowerCase();
+  const lessonCode = String(lesson.lessonCode || "").toLowerCase();
+  const cellState = String(lesson.cellState || "").toUpperCase();
 
   return (
-    lesson.code === "irregular" ||
-    lesson.lessonCode === "irregular" ||
-    lesson.cellState === "SUBSTITUTION" ||
-    lesson.cellState === "ROOMSUBSTITUTION" ||
+    code === "irregular" ||
+    lessonCode === "irregular" ||
+    cellState === "SUBSTITUTION" ||
+    cellState === "ROOMSUBSTITUTION" ||
     lesson.is?.substitution === true ||
     lesson.is?.roomSubstitution === true ||
     statusText.includes("substitution") ||
@@ -216,66 +212,35 @@ function isSubstitutionLesson(lesson) {
     statusText.includes("supplier") ||
     statusText.includes("suppliert") ||
     statusText.includes("supplierung") ||
-    statusText.includes("vertretung") ||
-    statusText.includes("raumvertretung")
-  );
-}
-  const searchableText = [
-    lesson.code,
-    lesson.lessonCode,
-    lesson.cellState,
-    lesson.substText,
-    lesson.info,
-    lesson.lstext,
-    lesson.lessonText,
-    lesson.periodText,
-    lesson.periodInfo
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return (
-    lesson.code === "cancelled" ||
-    searchableText.includes("cancelled") ||
-    searchableText.includes("entfällt") ||
-    searchableText.includes("entfall") ||
-    searchableText.includes("cancel")
+    statusText.includes("vertretung")
   );
 }
 
-function isSubstitutionLesson(lesson) {
+function getLessonStatus(lesson) {
   if (isCancelledLesson(lesson)) {
-    return false;
+    return {
+      titleSuffix: " - Entfällt",
+      description: "Entfällt",
+      color: "#DC2626",
+      transparency: "TRANSPARENT"
+    };
   }
 
-  const searchableText = [
-    lesson.code,
-    lesson.lessonCode,
-    lesson.cellState,
-    lesson.substText,
-    lesson.info,
-    lesson.lstext,
-    lesson.lessonText,
-    lesson.periodText,
-    lesson.periodInfo,
-    lesson.activityType
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  if (isSubstitutionLesson(lesson)) {
+    return {
+      titleSuffix: " - Suppliert",
+      description: "Suppliert",
+      color: "#16A34A",
+      transparency: "OPAQUE"
+    };
+  }
 
-  return (
-    lesson.code === "irregular" ||
-    lesson.cellState === "SUBSTITUTION" ||
-    lesson.cellState === "ROOMSUBSTITUTION" ||
-    lesson.is?.substitution === true ||
-    lesson.is?.roomSubstitution === true ||
-    searchableText.includes("substitution") ||
-    searchableText.includes("supplier") ||
-    searchableText.includes("suppliert") ||
-    searchableText.includes("vertretung")
-  );
+  return {
+    titleSuffix: "",
+    description: "Regulärer Unterricht",
+    color: "#2563EB",
+    transparency: "OPAQUE"
+  };
 }
 
 function createUid(lesson) {
@@ -297,37 +262,73 @@ function createUid(lesson) {
   return `${hash}@webuntis-ical`;
 }
 
+function logChangedLesson(lesson, subjects, status) {
+  if (status.description === "Regulärer Unterricht") {
+    return;
+  }
+
+  console.log(
+    "Geänderte Unterrichtsstunde:",
+    JSON.stringify(
+      {
+        id: lesson.id,
+        date: lesson.date,
+        startTime: lesson.startTime,
+        endTime: lesson.endTime,
+        subjects,
+        erkannterStatus: status.description,
+        code: lesson.code,
+        lessonCode: lesson.lessonCode,
+        cellState: lesson.cellState,
+        substText: lesson.substText,
+        info: lesson.info,
+        lstext: lesson.lstext,
+        lessonText: lesson.lessonText,
+        periodText: lesson.periodText,
+        periodInfo: lesson.periodInfo,
+        activityType: lesson.activityType,
+        statflags: lesson.statflags,
+        is: lesson.is
+      },
+      null,
+      2
+    )
+  );
+}
+
 function createEvent(lesson, generatedAt) {
   const subjects = getSubjectNames(lesson);
   const teachers = getTeacherNames(lesson);
   const rooms = getRoomNames(lesson);
+  const status = getLessonStatus(lesson);
 
-  let title = subjects.length > 0 ? subjects.join(", ") : "Unterricht";
-  let statusText = "Regulärer Unterricht";
-  let color = "#2563EB";
-  let transparency = "OPAQUE";
+  const basicTitle =
+    subjects.length > 0 ? subjects.join(", ") : "Unterricht";
 
-  if (isCancelledLesson(lesson)) {
-    title += " - Entfällt";
-    statusText = "Entfällt";
-    color = "#DC2626";
-    transparency = "TRANSPARENT";
-  } else if (isSubstitutionLesson(lesson)) {
-    title += " - Suppliert";
-    statusText = "Suppliert";
-    color = "#16A34A";
-  }
+  const title = `${basicTitle}${status.titleSuffix}`;
+
+  logChangedLesson(lesson, subjects, status);
 
   const descriptionParts = [
-    `Status: ${statusText}`,
+    `Status: ${status.description}`,
     teachers.length > 0 ? `Lehrkraft: ${teachers.join(", ")}` : null,
     rooms.length > 0 ? `Raum: ${rooms.join(", ")}` : null,
-    lesson.substText ? `Vertretungstext: ${lesson.substText}` : null,
+    lesson.substText
+      ? `Vertretungstext: ${lesson.substText}`
+      : null,
     lesson.info ? `Information: ${lesson.info}` : null,
-    lesson.lstext ? `Unterrichtstext: ${lesson.lstext}` : null,
-    lesson.lessonText ? `Unterrichtstext: ${lesson.lessonText}` : null,
-    lesson.periodText ? `Stundentext: ${lesson.periodText}` : null,
-    lesson.periodInfo ? `Stundeninformation: ${lesson.periodInfo}` : null
+    lesson.lstext
+      ? `Unterrichtstext: ${lesson.lstext}`
+      : null,
+    lesson.lessonText
+      ? `Unterrichtstext: ${lesson.lessonText}`
+      : null,
+    lesson.periodText
+      ? `Stundentext: ${lesson.periodText}`
+      : null,
+    lesson.periodInfo
+      ? `Stundeninformation: ${lesson.periodInfo}`
+      : null
   ].filter(Boolean);
 
   const lines = [
@@ -346,9 +347,9 @@ function createEvent(lesson, generatedAt) {
     `SUMMARY:${escapeIcalText(title)}`,
     `DESCRIPTION:${escapeIcalText(descriptionParts.join("\n"))}`,
     `LOCATION:${escapeIcalText(rooms.join(", "))}`,
-    `TRANSP:${transparency}`,
-    `COLOR:${color}`,
-    `X-APPLE-CALENDAR-COLOR:${color}`,
+    `TRANSP:${status.transparency}`,
+    `COLOR:${status.color}`,
+    `X-APPLE-CALENDAR-COLOR:${status.color}`,
     "STATUS:CONFIRMED",
     "END:VEVENT"
   ];
@@ -389,14 +390,31 @@ function createCalendar(lessons) {
     "END:VTIMEZONE"
   ];
 
-  const events = lessons.map((lesson) => createEvent(lesson, generatedAt));
+  const events = lessons.map((lesson) =>
+    createEvent(lesson, generatedAt)
+  );
 
   return [...header, ...events, "END:VCALENDAR", ""].join("\r\n");
 }
 
+function getLessonSortKey(lesson) {
+  return (
+    `${String(lesson.date).padStart(8, "0")}` +
+    `${String(lesson.startTime).padStart(4, "0")}` +
+    `${String(lesson.endTime).padStart(4, "0")}`
+  );
+}
+
 async function main() {
-  requireEnvironmentVariable("WEBUNTIS_USERNAME", CONFIG.username);
-  requireEnvironmentVariable("WEBUNTIS_PASSWORD", CONFIG.password);
+  requireEnvironmentVariable(
+    "WEBUNTIS_USERNAME",
+    CONFIG.username
+  );
+
+  requireEnvironmentVariable(
+    "WEBUNTIS_PASSWORD",
+    CONFIG.password
+  );
 
   console.log(`WebUntis-Server: ${CONFIG.server}`);
   console.log(`Schulkennung: ${CONFIG.school}`);
@@ -417,31 +435,22 @@ async function main() {
     await untis.login();
     console.log("WebUntis-Anmeldung erfolgreich.");
 
-    const lessons = await untis.getOwnTimetableForRange(startDate, endDate);
+    const lessons = await untis.getOwnTimetableForRange(
+      startDate,
+      endDate
+    );
 
     if (!Array.isArray(lessons)) {
-      throw new Error("WebUntis hat keine gültige Stundenplanliste geliefert.");
+      throw new Error(
+        "WebUntis hat keine gültige Stundenplanliste geliefert."
+      );
     }
 
-    lessons.sort((a, b) => {
-      const first = `${toUntisDate(
-        new Date(
-          parseUntisDate(a.date).year,
-          parseUntisDate(a.date).month - 1,
-          parseUntisDate(a.date).day
-        )
-      )}${String(a.startTime).padStart(4, "0")}`;
-
-      const second = `${toUntisDate(
-        new Date(
-          parseUntisDate(b.date).year,
-          parseUntisDate(b.date).month - 1,
-          parseUntisDate(b.date).day
-        )
-      )}${String(b.startTime).padStart(4, "0")}`;
-
-      return first.localeCompare(second);
-    });
+    lessons.sort((firstLesson, secondLesson) =>
+      getLessonSortKey(firstLesson).localeCompare(
+        getLessonSortKey(secondLesson)
+      )
+    );
 
     const calendar = createCalendar(lessons);
 
@@ -449,24 +458,36 @@ async function main() {
       encoding: "utf8"
     });
 
-    const cancelledCount = lessons.filter(isCancelledLesson).length;
-    const substitutionCount = lessons.filter(isSubstitutionLesson).length;
+    const cancelledCount =
+      lessons.filter(isCancelledLesson).length;
+
+    const substitutionCount =
+      lessons.filter(isSubstitutionLesson).length;
 
     console.log(`Kalendereinträge erzeugt: ${lessons.length}`);
     console.log(`Davon Entfall: ${cancelledCount}`);
-    console.log(`Davon suppliert: ${substitutionCount}`);
-    console.log(`${CONFIG.outputFile} wurde erfolgreich gespeichert.`);
+    console.log(`Davon Suppliert: ${substitutionCount}`);
+    console.log(
+      `${CONFIG.outputFile} wurde erfolgreich gespeichert.`
+    );
   } finally {
     try {
       await untis.logout();
     } catch {
-      // Ein fehlgeschlagener Logout soll die erzeugte Datei nicht verhindern.
+      console.log(
+        "WebUntis-Abmeldung konnte nicht durchgeführt werden."
+      );
     }
   }
 }
 
 main().catch((error) => {
   console.error("Fehler beim Erzeugen des Kalenders:");
-  console.error(error?.response?.data || error?.message || error);
+  console.error(
+    error?.response?.data ||
+      error?.stack ||
+      error?.message ||
+      error
+  );
   process.exit(1);
 });
