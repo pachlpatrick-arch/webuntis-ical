@@ -7,10 +7,8 @@ const CONFIG = {
   school: process.env.WEBUNTIS_SCHOOL || "elgym",
   username: process.env.WEBUNTIS_USERNAME,
   password: process.env.WEBUNTIS_PASSWORD,
-
   daysPast: Number(process.env.DAYS_PAST || 14),
   daysFuture: Number(process.env.DAYS_FUTURE || 120),
-
   outputFile: process.env.OUTPUT_FILE || "stundenplan.ics",
   calendarName:
     process.env.CALENDAR_NAME || "WebUntis Stundenplan",
@@ -55,13 +53,19 @@ function parseUntisTime(value) {
   };
 }
 
-function toIcalLocalDateTime(untisDate, untisTime) {
+function toIcalLocalDateTime(
+  untisDate,
+  untisTime
+) {
   const date = parseUntisDate(untisDate);
   const time = parseUntisTime(untisTime);
 
   return (
-    `${date.year}${pad(date.month)}${pad(date.day)}` +
-    `T${pad(time.hour)}${pad(time.minute)}00`
+    `${date.year}` +
+    `${pad(date.month)}` +
+    `${pad(date.day)}` +
+    `T${pad(time.hour)}` +
+    `${pad(time.minute)}00`
   );
 }
 
@@ -96,12 +100,12 @@ function foldIcalLine(line) {
   let currentLength = 0;
 
   for (const character of line) {
-    const characterLength = Buffer.byteLength(
-      character,
-      "utf8"
-    );
+    const characterLength =
+      Buffer.byteLength(character, "utf8");
 
-    if (currentLength + characterLength > 73) {
+    if (
+      currentLength + characterLength > 73
+    ) {
       parts.push(current);
       current = ` ${character}`;
       currentLength = 1 + characterLength;
@@ -145,15 +149,21 @@ function uniqueNames(items) {
 }
 
 function getSubjectNames(lesson) {
-  return uniqueNames(lesson.su || lesson.subjects);
+  return uniqueNames(
+    lesson.su || lesson.subjects
+  );
 }
 
 function getTeacherNames(lesson) {
-  return uniqueNames(lesson.te || lesson.teachers);
+  return uniqueNames(
+    lesson.te || lesson.teachers
+  );
 }
 
 function getRoomNames(lesson) {
-  return uniqueNames(lesson.ro || lesson.rooms);
+  return uniqueNames(
+    lesson.ro || lesson.rooms
+  );
 }
 
 function getLessonStatusText(lesson) {
@@ -180,7 +190,8 @@ function getLessonStatusText(lesson) {
   ]
     .filter(
       (value) =>
-        value !== undefined && value !== null
+        value !== undefined &&
+        value !== null
     )
     .map((value) => String(value))
     .join(" ")
@@ -188,10 +199,13 @@ function getLessonStatusText(lesson) {
 }
 
 function isCancelledLesson(lesson) {
-  const statusText = getLessonStatusText(lesson);
+  const statusText =
+    getLessonStatusText(lesson);
+
   const code = String(
     lesson.code || ""
   ).toLowerCase();
+
   const lessonCode = String(
     lesson.lessonCode || ""
   ).toLowerCase();
@@ -215,13 +229,17 @@ function isSubstitutionLesson(lesson) {
     return false;
   }
 
-  const statusText = getLessonStatusText(lesson);
+  const statusText =
+    getLessonStatusText(lesson);
+
   const code = String(
     lesson.code || ""
   ).toLowerCase();
+
   const lessonCode = String(
     lesson.lessonCode || ""
   ).toLowerCase();
+
   const cellState = String(
     lesson.cellState || ""
   ).toUpperCase();
@@ -234,7 +252,9 @@ function isSubstitutionLesson(lesson) {
     lesson.is?.substitution === true ||
     lesson.is?.roomSubstitution === true ||
     statusText.includes("substitution") ||
-    statusText.includes("roomsubstitution") ||
+    statusText.includes(
+      "roomsubstitution"
+    ) ||
     statusText.includes("supplier") ||
     statusText.includes("suppliert") ||
     statusText.includes("supplierung") ||
@@ -273,7 +293,9 @@ function createUid(lesson) {
   const stableInput = [
     CONFIG.school,
     lesson.id,
-    lesson.lessonId || lesson.lsnumber || "",
+    lesson.lessonId ||
+      lesson.lsnumber ||
+      "",
     lesson.date,
     lesson.startTime,
     lesson.endTime
@@ -288,53 +310,21 @@ function createUid(lesson) {
   return `${hash}@webuntis-ical`;
 }
 
-function logChangedLesson(
+function createEvent(
   lesson,
-  subjects,
-  status
+  generatedAt
 ) {
-  if (
-    status.description ===
-    "Regulärer Unterricht"
-  ) {
-    return;
-  }
+  const subjects =
+    getSubjectNames(lesson);
 
-  console.log(
-    "Geänderte Unterrichtsstunde:",
-    JSON.stringify(
-      {
-        id: lesson.id,
-        date: lesson.date,
-        startTime: lesson.startTime,
-        endTime: lesson.endTime,
-        subjects,
-        erkannterStatus:
-          status.description,
-        code: lesson.code,
-        lessonCode: lesson.lessonCode,
-        cellState: lesson.cellState,
-        substText: lesson.substText,
-        info: lesson.info,
-        lstext: lesson.lstext,
-        lessonText: lesson.lessonText,
-        periodText: lesson.periodText,
-        periodInfo: lesson.periodInfo,
-        activityType: lesson.activityType,
-        statflags: lesson.statflags,
-        is: lesson.is
-      },
-      null,
-      2
-    )
-  );
-}
+  const teachers =
+    getTeacherNames(lesson);
 
-function createEvent(lesson, generatedAt) {
-  const subjects = getSubjectNames(lesson);
-  const teachers = getTeacherNames(lesson);
-  const rooms = getRoomNames(lesson);
-  const status = getLessonStatus(lesson);
+  const rooms =
+    getRoomNames(lesson);
+
+  const status =
+    getLessonStatus(lesson);
 
   const basicTitle =
     subjects.length > 0
@@ -342,7 +332,7 @@ function createEvent(lesson, generatedAt) {
       : "Unterricht";
 
   /*
-   * Der Status wird bewusst VOR das Fach gesetzt:
+   * Gewünschte Schreibweise:
    *
    * Entfällt: GEOGRAPHIE
    * Suppliert: PONB
@@ -351,14 +341,7 @@ function createEvent(lesson, generatedAt) {
   const title =
     `${status.ti*lePrefix}${basicTitle}`;
 
-  logCha*gedLesson(
-    lesson,
-    subjects,
-    status
-  );
-
-  const descriptionParts = [
-Weitere Zeilen anzeigen
+  const *escriptionParts = [
     `Status: ${status.description}`,
     teachers.length > 0
       ? `Lehrkraft: ${teachers.join(", ")}`
@@ -384,7 +367,8 @@ Weitere Zeilen anzeigen
     lesson.periodInfo
       ? `Stundeninformation: ${lesson.periodInfo}`
       : null
-  ].filter(Boolean);*
+  ].filter(Bo*lean);
+
   const lines = [
     "BEGIN:VEVENT",
     `UID:${createUid(lesson)}`,
@@ -395,33 +379,35 @@ Weitere Zeilen anzeigen
         lesson.date,
         lesson.startTime
       ),
-    `DTEND;TZID=${C*NFIG.timezone}:` +
-      toIcalLoc*lDateTime(
-        lesson.date,
-  *     lesson.endTime
-      ),
-    `*UMMARY:${escapeIcalText(title)}`,
-*   `DESCRIPTION:${escapeIcalText(
-*     descriptionParts.join("\n")
- *  )}`,
-    `LOCATION:${escapeIcalT*xt(
+    `DTEND;T*ID=${CONFIG.timezone}:` +
+      to*calLocalDateTime(
+        lesson.d*te,
+        lesson.endTime
+      )*
+    `SUMMARY:${escapeIcalText(tit*e)}`,
+    `DESCRIPTION:${escapeIca*Text(
+      descriptionParts.join(*\n")
+    )}`,
+    `LOCATION:${esca*eIcalText(
       rooms.join(", ")
-    )}`*
-    `TRANSP:${status.transparency*`,
-    `COLOR:${status.color}`,
-  * `X-APPLE-CALENDAR-COLOR:${status.*olor}`,
-    "STATUS:CONFIRMED",
-  * "END:VEVENT"
-  ];
+*   )}`,
+    `TRANSP:${status.trans*arency}`,
+    `COLOR:${status.colo*}`,
+    `X-APPLE-CALENDAR-COLOR:` *
+      `${status.color}`,
+    "STA*US:CONFIRMED",
+    "END:VEVENT"
+  *;
 
-  return lines*    .map(foldIcalLine)
-    .join("*r\n");
+  return lines
+    .map(foldIca*Line)
+    .join("\r\n");
 }
 
-function createCalendar(*essons) {
-  const generatedAt = to*tcTimestamp();
+functi*n createCalendar(lessons) {
+  cons* generatedAt = toUtcTimestamp();
 
-  const header = [
+* const header = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "CALSCALE:GREGORIAN",
@@ -455,54 +441,61 @@ function createCalendar(*essons) {
     "END:VTIMEZONE"
   ];
 
-  const ev*nts = lessons.map(
-    (lesson) =>*      createEvent(lesson, generate*At)
+  const events = lessons.ma*(
+    (lesson) =>
+      createEven*(lesson, generatedAt)
   );
 
-  return [
+  retu*n [
     ...header,
     ...events,
     "END:VCALENDAR",
     ""
-  ].join("\r\n");
+  ].joi*("\r\n");
 }
 
-func*ion getLessonSortKey(lesson) {
-  r*turn (
-    String(lesson.date).pad*tart(8, "0") +
-    String(lesson.s*artTime).padStart(
-      4,
-      *0"
+function getLessonSor*Key(lesson) {
+  return (
+    String(lesson.date).padStart(
+      8,
+      "0"
     ) +
-    String(lesson.endTi*e).padStart(
+    String(lesson.startTime).padStart(
       4,
       "0"
-  * )
+    ) +
+    String(lesson.endTime).padStart(
+      4,
+      "0"
+    )
   );
 }
 
-async function main() {*  requireEnvironmentVariable(
-    *WEBUNTIS_USERNAME",
-    CONFIG.use*name
+async function main() {
+  requireEnvironmentVariable(
+    "WEBUNTIS_USERNAME",
+    CONFIG.username
   );
 
-  requireEnvironmentVar*able(
+  requireEnvironmentVariable(
     "WEBUNTIS_PASSWORD",
-   *CONFIG.password
+    CONFIG.password
   );
 
-  console.lo*(
-    `WebUntis-Server: ${CONFIG.s*rver}`
-  );
   console.log(
-    `Sc*ulkennung: ${CONFIG.school}`
-  );
-* console.log(
-    `Ausgabedatei: $*CONFIG.outputFile}`
+    `WebUntis-Server: ${CONFIG.server}`
   );
 
-  const *ntis = new WebUntis(
-    CONFIG.sc*ool,
+  console.log(
+    `Schulkennung: ${CONFIG.school}`
+  );
+
+  console.log(
+    `Ausgabedatei: ${CONFIG.outputFile}`
+  );
+
+  const untis = new WebUntis(
+    CONFIG.school,
     CONFIG.username,
     CONFIG.password,
     CONFIG.server,
