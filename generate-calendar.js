@@ -533,16 +533,20 @@ async function main() {
     `Ausgabedatei: ${CONFIG.outputFile}`
   );
 
-const untis = new WebUntis(
-2
-CONFIG.school,
-3
-CONFIG.username,
-4
-CONFIG.password,
-5
-CONFIG.server,
-6
-"GitHub-WebUntis-iCal"
-7
-);
+  const untis = new WebUntis(
+    CONFIG.school,
+    CONFIG.username,
+    CONFIG.password,
+    CONFIG.server,
+    "GitHub-WebUntis-iCal"
+  );
+
+  const startDate = addDays(
+    new Date(),
+    -CONFIG.daysPast
+  );
+
+  const endDate = addDays(
+    new Date(),
+    CONFIG.daysFuture
+  );
