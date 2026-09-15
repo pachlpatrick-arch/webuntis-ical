@@ -266,7 +266,6 @@ function getLessonStatus(lesson) {
     color: "#2563EB",
     transparency: "OPAQUE"
   };
-}
 
 function createUid(lesson) {
   const stableInput = [
