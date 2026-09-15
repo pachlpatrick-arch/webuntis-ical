@@ -341,7 +341,8 @@ function createEvent(
   const title =
     `${status.ti*lePrefix}${basicTitle}`;
 
-  const *escriptionParts = [
+  const descriptionParts = [
+Weitere Zeilen anzeigen
     `Status: ${status.description}`,
     teachers.length > 0
       ? `Lehrkraft: ${teachers.join(", ")}`
