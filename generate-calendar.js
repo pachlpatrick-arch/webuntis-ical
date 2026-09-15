@@ -388,19 +388,18 @@ function createEvent(
     `DESCRIPTION:${escapeIca*Text(
       descriptionParts.join("\n")
     )}`,
-    `LOCATION:${esca*eIcalText(
+    `LOCATION:${escapeIcalText(
       rooms.join(", ")
-*   )}`,
-    `TRANSP:${status.trans*arency}`,
-    `COLOR:${status.colo*}`,
-    `X-APPLE-CALENDAR-COLOR:` *
-      `${status.color}`,
-    "STA*US:CONFIRMED",
+    )}`,
+    `TRANSP:${status.transparency}`,
+    `COLOR:${status.color}`,
+    `X-APPLE-CALENDAR-COLOR:${status.color}`,
+    "STATUS:CONFIRMED",
     "END:VEVENT"
-  *;
+  ];
 
   return lines
-    .map(foldIca*Line)
+    .map(foldIcalLine)
     .join("\r\n");
 }
 
